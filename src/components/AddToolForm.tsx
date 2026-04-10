@@ -44,6 +44,7 @@ export default function AddToolForm({ onSuccess, onCancel, toolToEdit }: AddTool
     toolToEdit?.fotos_depois?.map(url => ({ url })) || []
   );
 
+  const [photosToDelete, setPhotosToDelete] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -144,13 +145,42 @@ export default function AddToolForm({ onSuccess, onCancel, toolToEdit }: AddTool
 
   const removePhoto = (index: number, type: 'antes' | 'depois') => {
     if (type === 'antes') {
+      const photo = fotosAntes[index];
+      if (!photo.file && photo.url) {
+        setPhotosToDelete(prev => [...prev, photo.url]);
+      }
       const updated = [...fotosAntes];
       updated.splice(index, 1);
       setFotosAntes(updated);
     } else {
+      const photo = fotosDepois[index];
+      if (!photo.file && photo.url) {
+        setPhotosToDelete(prev => [...prev, photo.url]);
+      }
       const updated = [...fotosDepois];
       updated.splice(index, 1);
       setFotosDepois(updated);
+    }
+  };
+
+  const deleteFilesFromStorage = async (urls: string[]) => {
+    if (urls.length === 0) return;
+    try {
+      const paths = urls
+        .filter(url => url && typeof url === 'string' && url.includes('ferramentas/'))
+        .map(url => {
+          const parts = url.split('/');
+          return `ferramentas/${parts[parts.length - 1]}`;
+        });
+      
+      if (paths.length > 0) {
+        // We don't await this to avoid blocking, or we catch errors and ignore them
+        await supabase.storage.from('ferramentas-fotos').remove(paths).catch(err => {
+          console.warn('Storage deletion failed, ignoring:', err);
+        });
+      }
+    } catch (err) {
+      console.error('Error in deleteFilesFromStorage:', err);
     }
   };
 
@@ -248,6 +278,11 @@ export default function AddToolForm({ onSuccess, onCancel, toolToEdit }: AddTool
           .from('ferramentas')
           .insert([toolData]);
         if (dbError) throw dbError;
+      }
+
+      // Delete removed photos from storage
+      if (photosToDelete.length > 0) {
+        await deleteFilesFromStorage(photosToDelete);
       }
 
       onSuccess();
@@ -617,7 +652,9 @@ export default function AddToolForm({ onSuccess, onCancel, toolToEdit }: AddTool
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                   {fotosAntes.map((photo, idx) => (
                     <div key={idx} className="relative aspect-square rounded-2xl overflow-hidden border-2 border-brand-200 group">
-                      <img src={photo.url} className="w-full h-full object-cover" />
+                      {photo.url && (
+                        <img src={photo.url} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      )}
                       <button
                         type="button"
                         onClick={() => removePhoto(idx, 'antes')}
@@ -659,7 +696,9 @@ export default function AddToolForm({ onSuccess, onCancel, toolToEdit }: AddTool
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                   {fotosDepois.map((photo, idx) => (
                     <div key={idx} className="relative aspect-square rounded-2xl overflow-hidden border-2 border-brand-200 group">
-                      <img src={photo.url} className="w-full h-full object-cover" />
+                      {photo.url && (
+                        <img src={photo.url} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      )}
                       <button
                         type="button"
                         onClick={() => removePhoto(idx, 'depois')}

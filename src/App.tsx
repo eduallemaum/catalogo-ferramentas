@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Hammer, Settings, Search, LayoutGrid, LogIn, LogOut, User as UserIcon } from 'lucide-react';
+import { Plus, Hammer, Settings, Search, LayoutGrid, LogIn, LogOut, User as UserIcon, Share2 } from 'lucide-react';
 import ToolList from './components/ToolList';
 import AddToolForm from './components/AddToolForm';
 import LoginForm from './components/LoginForm';
@@ -12,6 +12,25 @@ export default function App() {
   const [toolToEdit, setToolToEdit] = useState<Ferramenta | undefined>(undefined);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const { user, isAdmin, signOut, loading } = useAuth();
+  
+  const handleShareCatalog = async () => {
+    const shareData = {
+      title: 'Stein und Fass - Catálogo de Ferramentas',
+      text: 'Olá! Confira meu catálogo de ferramentas Stein und Fass:',
+      url: window.location.origin
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareData.text + ' ' + shareData.url)}`;
+        window.open(whatsappUrl, '_blank');
+      }
+    } catch (err) {
+      console.error('Erro ao compartilhar:', err);
+    }
+  };
 
   const handleEdit = (tool: Ferramenta) => {
     setToolToEdit(tool);
@@ -56,6 +75,15 @@ export default function App() {
         </div>
         
         <div className="flex items-center gap-2">
+          <button 
+            onClick={handleShareCatalog}
+            className="p-2 text-brand-600 hover:bg-brand-50 rounded-xl transition-colors flex items-center gap-2"
+            title="Compartilhar Catálogo"
+          >
+            <Share2 size={20} />
+            <span className="hidden md:inline text-sm font-bold">Compartilhar</span>
+          </button>
+
           {user ? (
             <div className="flex items-center gap-3">
               <div className="hidden md:flex flex-col items-end">

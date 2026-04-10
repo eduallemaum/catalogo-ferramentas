@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Ferramenta } from '../types';
-import { Loader2, PackageOpen, Trash2, Edit2, Info, Calendar, User, Tag, Hammer, History, ChevronRight, X, Image as ImageIcon, FileText, CheckSquare, Square, Printer } from 'lucide-react';
+import { Loader2, PackageOpen, Trash2, Edit2, Info, Calendar, User, Tag, Hammer, History, ChevronRight, X, Image as ImageIcon, FileText, CheckSquare, Square, Printer, Share2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
 import jsPDF from 'jspdf';
@@ -19,6 +19,27 @@ export default function ToolList({ onEdit }: ToolListProps) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isLabelGenOpen, setIsLabelGenOpen] = useState(false);
   const { isAdmin } = useAuth();
+
+  const handleShareTool = async (e: React.MouseEvent, tool: Ferramenta) => {
+    e.stopPropagation();
+    const toolUrl = `${window.location.origin}?id=${tool.id}`;
+    const shareData = {
+      title: `Ferramenta: ${tool.nome}`,
+      text: `Veja os detalhes desta ferramenta no meu catálogo: ${tool.nome}`,
+      url: toolUrl
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareData.text + ' ' + shareData.url)}`;
+        window.open(whatsappUrl, '_blank');
+      }
+    } catch (err) {
+      console.error('Erro ao compartilhar ferramenta:', err);
+    }
+  };
 
   const fetchTools = async () => {
     try {
@@ -42,6 +63,7 @@ export default function ToolList({ onEdit }: ToolListProps) {
     if (!confirm('Tem certeza que deseja excluir esta ferramenta e todas as suas fotos?')) return;
 
     try {
+      // Delete from DB first to ensure it's removed even if storage fails
       const { error: dbError } = await supabase
         .from('ferramentas')
         .delete()
@@ -49,12 +71,20 @@ export default function ToolList({ onEdit }: ToolListProps) {
 
       if (dbError) throw dbError;
 
+      // Try to delete from storage but don't block or fail if it doesn't work
       if (fotos && fotos.length > 0) {
-        const paths = fotos.map(url => {
-          const parts = url.split('/');
-          return `ferramentas/${parts[parts.length - 1]}`;
-        });
-        await supabase.storage.from('ferramentas-fotos').remove(paths);
+        const paths = fotos
+          .filter(url => url && typeof url === 'string' && url.includes('ferramentas/'))
+          .map(url => {
+            const parts = url.split('/');
+            return `ferramentas/${parts[parts.length - 1]}`;
+          });
+        
+        if (paths.length > 0) {
+          supabase.storage.from('ferramentas-fotos').remove(paths).catch(err => {
+            console.warn('Storage deletion failed for tool:', id, err);
+          });
+        }
       }
 
       setTools(tools.filter(t => t.id !== id));
@@ -230,12 +260,18 @@ export default function ToolList({ onEdit }: ToolListProps) {
               </button>
 
               <div className="aspect-video relative overflow-hidden">
-                <img
-                  src={tool.foto_url}
-                  alt={tool.nome}
-                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                  referrerPolicy="no-referrer"
-                />
+                {tool.foto_url ? (
+                  <img
+                    src={tool.foto_url}
+                    alt={tool.nome}
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="w-full h-full bg-brand-50 flex items-center justify-center text-brand-200">
+                    <ImageIcon size={48} />
+                  </div>
+                )}
                 <div className="absolute top-3 left-3">
                   <span className="px-3 py-1 bg-brand-900/80 backdrop-blur-md text-white text-[10px] font-black uppercase tracking-widest rounded-full">
                     {tool.categoria}
@@ -252,7 +288,16 @@ export default function ToolList({ onEdit }: ToolListProps) {
               <div className="p-5">
                 <div className="flex justify-between items-start mb-1">
                   <h4 className="text-lg font-bold text-brand-900">{tool.nome}</h4>
-                  <ChevronRight size={18} className="text-brand-300 group-hover:text-brand-500 transition-colors" />
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={(e) => handleShareTool(e, tool)}
+                      className="p-2 text-brand-400 hover:text-accent-600 hover:bg-accent-50 rounded-lg transition-all"
+                      title="Compartilhar Ferramenta"
+                    >
+                      <Share2 size={18} />
+                    </button>
+                    <ChevronRight size={18} className="text-brand-300 group-hover:text-brand-500 transition-colors" />
+                  </div>
                 </div>
                 <p className="text-brand-500 text-xs font-bold uppercase tracking-wider mb-3">
                   {tool.marca} {tool.modelo && `• ${tool.modelo}`}
@@ -405,7 +450,9 @@ export default function ToolList({ onEdit }: ToolListProps) {
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                       {selectedTool.fotos_antes?.map((url, idx) => (
                         <a key={idx} href={url} target="_blank" rel="noreferrer" className="aspect-square rounded-2xl overflow-hidden border border-brand-100 group">
-                          <img src={url} className="w-full h-full object-cover transition-transform group-hover:scale-110" referrerPolicy="no-referrer" />
+                          {url && (
+                            <img src={url} className="w-full h-full object-cover transition-transform group-hover:scale-110" referrerPolicy="no-referrer" />
+                          )}
                         </a>
                       ))}
                       {(!selectedTool.fotos_antes || selectedTool.fotos_antes.length === 0) && (
@@ -426,7 +473,9 @@ export default function ToolList({ onEdit }: ToolListProps) {
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                       {selectedTool.fotos_depois?.map((url, idx) => (
                         <a key={idx} href={url} target="_blank" rel="noreferrer" className="aspect-square rounded-2xl overflow-hidden border border-brand-100 group">
-                          <img src={url} className="w-full h-full object-cover transition-transform group-hover:scale-110" referrerPolicy="no-referrer" />
+                          {url && (
+                            <img src={url} className="w-full h-full object-cover transition-transform group-hover:scale-110" referrerPolicy="no-referrer" />
+                          )}
                         </a>
                       ))}
                       {(!selectedTool.fotos_depois || selectedTool.fotos_depois.length === 0) && (
