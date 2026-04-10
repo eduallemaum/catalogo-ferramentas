@@ -565,7 +565,6 @@ export default function AddToolForm({ onSuccess, onCancel, toolToEdit }: AddTool
                   ref={fileInputAntesRef}
                   onChange={(e) => handleFileChange(e, 'antes')}
                   accept="image/*"
-                  capture="environment"
                   multiple
                   className="hidden"
                 />
@@ -576,7 +575,7 @@ export default function AddToolForm({ onSuccess, onCancel, toolToEdit }: AddTool
                       <button
                         type="button"
                         onClick={() => removePhoto(idx, 'antes')}
-                        className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute top-2 right-2 p-1.5 bg-red-500/90 text-white rounded-full shadow-lg transition-transform active:scale-90"
                       >
                         <X size={14} />
                       </button>
@@ -608,7 +607,6 @@ export default function AddToolForm({ onSuccess, onCancel, toolToEdit }: AddTool
                   ref={fileInputDepoisRef}
                   onChange={(e) => handleFileChange(e, 'depois')}
                   accept="image/*"
-                  capture="environment"
                   multiple
                   className="hidden"
                 />
@@ -619,7 +617,7 @@ export default function AddToolForm({ onSuccess, onCancel, toolToEdit }: AddTool
                       <button
                         type="button"
                         onClick={() => removePhoto(idx, 'depois')}
-                        className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute top-2 right-2 p-1.5 bg-red-500/90 text-white rounded-full shadow-lg transition-transform active:scale-90"
                       >
                         <X size={14} />
                       </button>
