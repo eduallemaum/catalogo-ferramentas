@@ -4,6 +4,7 @@ import { Camera, Loader2, Save, X, Plus, Trash2, ChevronRight, ChevronLeft, Hamm
 import { motion, AnimatePresence } from 'motion/react';
 import { Ferramenta, Categoria } from '../types';
 import { QRCodeCanvas } from 'qrcode.react';
+import imageCompression from 'browser-image-compression';
 
 interface AddToolFormProps {
   onSuccess: () => void;
@@ -153,17 +154,35 @@ export default function AddToolForm({ onSuccess, onCancel, toolToEdit }: AddTool
     }
   };
 
+  const compressImage = async (file: File) => {
+    const options = {
+      maxSizeMB: 1,
+      maxWidthOrHeight: 1280,
+      useWebWorker: true,
+      initialQuality: 0.8,
+    };
+    try {
+      return await imageCompression(file, options);
+    } catch (error) {
+      console.error('Error compressing image:', error);
+      return file; // Fallback to original file
+    }
+  };
+
   const uploadPhotos = async (photos: {file?: File, url: string}[]) => {
     const urls: string[] = [];
     for (const photo of photos) {
       if (photo.file) {
+        // Compress before upload
+        const compressedFile = await compressImage(photo.file);
+        
         const fileExt = photo.file.name.split('.').pop();
         const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
         const filePath = `ferramentas/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
           .from('ferramentas-fotos')
-          .upload(filePath, photo.file);
+          .upload(filePath, compressedFile);
 
         if (uploadError) throw uploadError;
 
