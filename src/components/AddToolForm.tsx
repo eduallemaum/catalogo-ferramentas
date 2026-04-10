@@ -22,7 +22,7 @@ export default function AddToolForm({ onSuccess, onCancel, toolToEdit }: AddTool
   const [modelo, setModelo] = useState(toolToEdit?.modelo || '');
   const [numeroSerie, setNumeroSerie] = useState(toolToEdit?.numero_serie || '');
   const [descricao, setDescricao] = useState(toolToEdit?.descricao || '');
-  const [categoria, setCategoria] = useState(toolToEdit?.categoria || 'Outros');
+  const [categoria, setCategoria] = useState(toolToEdit?.categoria || '');
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -30,9 +30,9 @@ export default function AddToolForm({ onSuccess, onCancel, toolToEdit }: AddTool
   // Block 2: Situação
   const [estadoRecebimento, setEstadoRecebimento] = useState(toolToEdit?.estado_recebimento || '');
   const [proprietarioAnterior, setProprietarioAnterior] = useState(toolToEdit?.proprietario_anterior || '');
-  const [estadoAtual, setEstadoAtual] = useState(toolToEdit?.estado_atual || 'Na Fila');
+  const [estadoAtual, setEstadoAtual] = useState(toolToEdit?.estado_atual || '');
   const [historicoRestauracao, setHistoricoRestauracao] = useState(toolToEdit?.historico_restauracao || '');
-  const [statusOptions, setStatusOptions] = useState(['Na Fila', 'Em Limpeza', 'Em Restauração', 'Pronta/Finalizada']);
+  const [statusOptions, setStatusOptions] = useState<string[]>([]);
   const [isEditingStatus, setIsEditingStatus] = useState(false);
 
   // Block 3: Mídia
@@ -52,17 +52,26 @@ export default function AddToolForm({ onSuccess, onCancel, toolToEdit }: AddTool
 
   useEffect(() => {
     fetchCategorias();
-    // Load custom status from local storage if any
-    const savedStatus = localStorage.getItem('marcenaria_status_options');
-    if (savedStatus) {
-      setStatusOptions(JSON.parse(savedStatus));
-    }
+    fetchEstados();
   }, []);
 
   const fetchCategorias = async () => {
     const { data, error } = await supabase.from('categorias').select('*').order('nome');
-    if (data) setCategorias(data);
+    if (data) {
+      setCategorias(data);
+      if (!categoria && data.length > 0) setCategoria(data[0].nome);
+    }
     else if (error) console.error('Error fetching categories:', error);
+  };
+
+  const fetchEstados = async () => {
+    const { data, error } = await supabase.from('estados_ferramenta').select('*').order('nome');
+    if (data) {
+      const names = data.map(d => d.nome);
+      setStatusOptions(names);
+      if (!estadoAtual && names.length > 0) setEstadoAtual(names[0]);
+    }
+    else if (error) console.error('Error fetching states:', error);
   };
 
   const handleAddCategory = async () => {
@@ -84,18 +93,36 @@ export default function AddToolForm({ onSuccess, onCancel, toolToEdit }: AddTool
     }
   };
 
-  const handleAddStatus = (newStatus: string) => {
+  const handleAddStatus = async (newStatus: string) => {
     if (!newStatus.trim() || statusOptions.includes(newStatus)) return;
-    const updated = [...statusOptions, newStatus.trim()];
-    setStatusOptions(updated);
-    localStorage.setItem('marcenaria_status_options', JSON.stringify(updated));
+    try {
+      const { error } = await supabase
+        .from('estados_ferramenta')
+        .upsert([{ nome: newStatus.trim() }]);
+      if (error) throw error;
+      
+      const updated = [...statusOptions, newStatus.trim()];
+      setStatusOptions(updated);
+      setEstadoAtual(newStatus.trim());
+    } catch (err) {
+      console.error('Error adding state:', err);
+    }
   };
 
-  const handleRemoveStatus = (statusToRemove: string) => {
-    const updated = statusOptions.filter(s => s !== statusToRemove);
-    setStatusOptions(updated);
-    localStorage.setItem('marcenaria_status_options', JSON.stringify(updated));
-    if (estadoAtual === statusToRemove) setEstadoAtual(updated[0] || '');
+  const handleRemoveStatus = async (statusToRemove: string) => {
+    try {
+      const { error } = await supabase
+        .from('estados_ferramenta')
+        .delete()
+        .eq('nome', statusToRemove);
+      if (error) throw error;
+
+      const updated = statusOptions.filter(s => s !== statusToRemove);
+      setStatusOptions(updated);
+      if (estadoAtual === statusToRemove) setEstadoAtual(updated[0] || '');
+    } catch (err) {
+      console.error('Error removing state:', err);
+    }
   };
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>, type: 'antes' | 'depois') => {
@@ -164,6 +191,11 @@ export default function AddToolForm({ onSuccess, onCancel, toolToEdit }: AddTool
     setError(null);
 
     try {
+      // Check if current state is new and save it
+      if (estadoAtual && !statusOptions.includes(estadoAtual)) {
+        await supabase.from('estados_ferramenta').upsert([{ nome: estadoAtual }]);
+      }
+
       const urlsAntes = await uploadPhotos(fotosAntes);
       const urlsDepois = await uploadPhotos(fotosDepois);
       
@@ -362,11 +394,6 @@ export default function AddToolForm({ onSuccess, onCancel, toolToEdit }: AddTool
                       onChange={(e) => setCategoria(e.target.value)}
                       className="input-field flex-1"
                     >
-                      <option value="Corte">Corte</option>
-                      <option value="Medição">Medição</option>
-                      <option value="Percussão">Percussão</option>
-                      <option value="Aperto">Aperto</option>
-                      <option value="Outros">Outros</option>
                       {categorias.map(cat => (
                         <option key={cat.id} value={cat.nome}>{cat.nome}</option>
                       ))}
