@@ -1,0 +1,7 @@
+{
+  "name": "Marcenaria Pro",
+  "description": "Gerenciamento de ferramentas de marcenaria com captura de fotos e integração Supabase.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
